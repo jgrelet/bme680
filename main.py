@@ -10,6 +10,8 @@ from bme680 import *
 from ssd1306 import SSD1306_I2C
 from config import ssid, password
 #from wlan import set_wlan
+import gc
+gc.collect()
 
 # Connect to WLAN
 def set_wlan(oled):
@@ -30,6 +32,26 @@ def set_wlan(oled):
     oled.text(f'{ip}', 0, 36)
     oled.show()
 
+def web_page(date_time, temp, pres, hum, gas):
+  # HTML page to be served
+  
+  html = """<html><head><title>Pico 2w with BME680 sensor</title><meta http-equiv="refresh" content="5">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,"><style>body { text-align: center; font-family: "Trebuchet MS", Arial;}
+  table { border-collapse: collapse; margin-left:auto; margin-right:auto; }
+  th { padding: 12px; background-color: #0043af; color: white; }
+  tr { border: 1px solid #ddd; padding: 12px; }
+  tr:hover { background-color: #bcbcbc; }
+  td { border: none; padding: 12px; }
+  .sensor { color:white; font-weight: bold; background-color: #bcbcbc; padding: 1px;
+  </style></head><body><h1>ESP with BME680</h1>
+  <table><tr><th>MEASUREMENT</th><th>VALUE</th></tr>
+  <tr><td>Time</td><td><span class="sensor">""" + date_time + """</span></td></tr>
+  <tr><td>Temp. Celsius</td><td><span class="sensor">""" + temp + """</span></td></tr>
+  <tr><td>Pressure</td><td><span class="sensor">""" + pres + """</span></td></tr>
+  <tr><td>Humidity</td><td><span class="sensor">""" + hum + """</span></td></tr>
+  <tr><td>Gas</td><td><span class="sensor">""" + gas + """</span></td></tr></body></html>"""
+  return html
 
 def main():
   # Display dimensions
@@ -68,6 +90,10 @@ def main():
   time.sleep(2)
   oled.fill(0)
 
+  s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+  s.bind(('', 80))
+  s.listen(5)
+
   while True:
     try:
 
@@ -78,13 +104,17 @@ def main():
       year, month, day, hour, minute, second, weekday, yearday = time.localtime()
       date_time = f"{hour:02d}:{minute:02d}:{second:02d} {month}/{day}/{year-2000:02d} "
 
-      temp = str(round(bme.temperature, 2)) + ' C'
+      temp = f"{bme.temperature:.1f} C"
+      #temp = str(round(bme.temperature, 2)) + ' C'
       #temp = (bme.temperature) * (9/5) + 32
       #temp = str(round(temp, 2)) + 'F'
       
-      hum = str(round(bme.humidity, 2)) + ' %'
-      pres = str(round(bme.pressure, 2)) + ' hPa'
-      gas = str(round(bme.gas/1000, 2)) + ' KOhms'
+      #hum = str(round(bme.humidity, 2)) + ' %'
+      hum = f"{bme.humidity:.0f} %"
+      pres =f"{bme.pressure:.1f} hPa"
+      #pres = str(round(bme.pressure, 2)) + ' hPa'
+      gas = f"{bme.gas/1000:.2f} KOhms"
+      #gas = str(round(bme.gas/1000, 2)) + ' KOhms'
 
       print(f"{date_time}")
       print('Temperature:', temp)
@@ -102,6 +132,26 @@ def main():
       led_onboard.value(0)
     except OSError as e:
       print('Failed to read sensor.')
+    
+    """ try:
+      if gc.mem_free() < 102000:
+        gc.collect()
+      conn, addr = s.accept()
+      conn.settimeout(3.0)
+      print('Got a connection from %s' % str(addr))
+      request = conn.recv(1024)
+      conn.settimeout(None)
+      request = str(request)
+      print('Content = %s' % request)
+      response = web_page(date_time, temp, pres, hum, gas)
+      conn.send('HTTP/1.1 200 OK\n')
+      conn.send('Content-Type: text/html\n')
+      conn.send('Connection: close\n\n')
+      conn.sendall(response)
+      conn.close()
+    except OSError as e:
+      conn.close()
+      print('Connection closed') """
   
     time.sleep(1)
 
